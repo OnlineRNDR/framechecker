@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Frame Viewer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px auto;
+            max-width: 1200px;
+        }
+        #top-container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+        #logo-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        #logo-section img {
+            width: 400px;
+            height: 200px;
+        }
+        #upload-section {
+            margin-top: 10px;
+        }
+        #upload-section input {
+            padding: 10px 20px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #video-details {
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            text-align: left;
+            width: 100%;
+        }
+        #right-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+        }
+        #selected-frames {
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        #shift-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        #shift-container button {
+            padding: 10px 20px;
+            font-size: 14px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        #shifted-frames {
+            font-size: 14px;
+            font-weight: bold;
+            margin-top: 10px;
+            text-align: right;
+        }
+        #frames-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            justify-content: center;
+        }
+        .frame {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            border: 2px solid black;
+            padding: 5px;
+            cursor: pointer;
+            background-color: white;
+        }
+        .frame img {
+            max-width: 200px;
+            max-height: 200px;
+        }
+        .frame-number {
+            margin-top: 5px;
+            font-size: 14px;
+        }
+        .frame.selected {
+            border-color: green;
+            background-color: rgba(0, 128, 0, 0.3); /* Green with opacity */
+        }
+    </style>
+</head>
+<body>
+    <div id="top-container">
+        <div id="logo-section">
+            <img src="logo.png" alt="Video Frame Viewer Logo">
+            <div id="upload-section">
+                <input type="file" id="videoUpload" accept="video/*">
+            </div>
+            <div id="video-details"></div>
+        </div>
+        <div id="right-section">
+            <div id="selected-frames">Frame Selection: </div>
+            <div id="shift-container">
+                <button id="shift-left">Shift Left</button>
+                <button id="shift-right">Shift Right</button>
+            </div>
+            <div id="shifted-frames">Shifted Frame Selection: </div>
+        </div>
+    </div>
+    <div id="frames-container"></div>
+
+    <script>
+        document.getElementById('videoUpload').addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const video = document.createElement('video');
+                video.src = URL.createObjectURL(file);
+                video.muted = true;
+
+                const canvas = document.createElement('canvas');
+                const context = canvas.getContext('2d');
+                const framesContainer = document.getElementById('frames-container');
+                const videoDetails = document.getElementById('video-details');
+                const selectedFrames = document.getElementById('selected-frames');
+                const shiftedFrames = document.getElementById('shifted-frames');
+
+                let selectedFrameNumbers = [];
+                let processedFrames = new Set(); // Track processed frames to prevent duplicates
+
+                videoDetails.innerHTML = '<p>Loading video details...</p>';
+
+                video.addEventListener('loadedmetadata', () => {
+                    const frameRate = 30; // Assuming a default frame rate of 30 FPS if not provided
+                    const duration = video.duration;
+                    const totalFrames = Math.floor(duration * frameRate);
+
+                    videoDetails.innerHTML = `
+                        <p><strong>File Name:</strong> ${file.name}</p>
+                        <p><strong>Duration:</strong> ${Math.round(duration)} seconds</p>
+                        <p><strong>Resolution:</strong> ${video.videoWidth} x ${video.videoHeight}</p>
+                        <p><strong>Frame Rate:</strong> ${frameRate} FPS</p>
+                        <p><strong>Total Frames:</strong> ${totalFrames}</p>
+                    `;
+
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+
+                    let frameNumber = 0;
+
+                    const captureFrame = () => {
+                        if (video.currentTime >= duration) {
+                            video.pause();
+                            console.log('Video processing completed.');
+                            return;
+                        }
+
+                        const currentFrame = Math.round(video.currentTime * frameRate);
+                        if (processedFrames.has(currentFrame)) {
+                            frameNumber++;
+                            video.currentTime = frameNumber / frameRate;
+                            return;
+                        }
+
+                        processedFrames.add(currentFrame);
+
+                        context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                        const frame = document.createElement('div');
+                        frame.className = 'frame';
+
+                        frame.addEventListener('click', () => {
+                            frame.classList.toggle('selected');
+                            if (frame.classList.contains('selected')) {
+                                if (!selectedFrameNumbers.includes(currentFrame)) {
+                                    selectedFrameNumbers.push(currentFrame);
+                                }
+                            } else {
+                                selectedFrameNumbers = selectedFrameNumbers.filter(num => num !== currentFrame);
+                            }
+                            selectedFrames.innerText = `Frame Selection: ${selectedFrameNumbers.sort((a, b) => a - b).join(', ')}`;
+                        });
+
+                        const img = document.createElement('img');
+                        img.src = canvas.toDataURL('image/png');
+
+                        const frameLabel = document.createElement('div');
+                        frameLabel.className = 'frame-number';
+                        frameLabel.innerText = `Frame ${currentFrame}`;
+
+                        frame.appendChild(img);
+                        frame.appendChild(frameLabel);
+                        framesContainer.appendChild(frame);
+
+                        frameNumber++;
+                        video.currentTime = frameNumber / frameRate;
+                    };
+
+                    video.addEventListener('seeked', captureFrame);
+
+                    video.currentTime = 0; // Start capturing from the beginning
+
+                    // Shift Buttons
+                    document.getElementById('shift-left').addEventListener('click', () => {
+                        const shiftedLeft = selectedFrameNumbers.map(num => Math.max(0, num - 1));
+                        shiftedFrames.innerText = `Shifted Frame Selection: ${shiftedLeft.sort((a, b) => a - b).join(', ')}`;
+                    });
+
+                    document.getElementById('shift-right').addEventListener('click', () => {
+                        const shiftedRight = selectedFrameNumbers.map(num => Math.min(totalFrames - 1, num + 1));
+                        shiftedFrames.innerText = `Shifted Frame Selection: ${shiftedRight.sort((a, b) => a - b).join(', ')}`;
+                    });
+                });
+
+                video.load();
+            }
+        });
+    </script>
+</body>
+</html>
